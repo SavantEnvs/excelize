@@ -1,0 +1,1 @@
+_xlfn.AGGREGATE(11,0,A1:A6)

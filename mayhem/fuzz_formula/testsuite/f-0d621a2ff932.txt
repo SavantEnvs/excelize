@@ -1,0 +1,1 @@
+TRIMMEAN(A1:B4,70%)

@@ -1,0 +1,8 @@
+project: savantenvs/excelize
+target: fuzz_openreader
+testsuite:
+  - https://$MAYHEM_DOMAIN/$MAYHEM_PROJECT/$MAYHEM_TARGET/testsuite.tar
+  - file://mayhem/fuzz_openreader/testsuite
+cmds:
+  - cmd: /mayhem/fuzz_openreader
+    libfuzzer: true

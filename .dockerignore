@@ -1,0 +1,21 @@
+# .dockerignore for the commit-image build.
+# Goal: bake in the FULL repo (including .git history — the grader uses it),
+# dropping only local build artifacts and editor/OS cruft. Dev image, not minimal.
+# Lands at the fork root (the build context) when the template is copied in.
+#
+# excelize ships no repo-root .dockerignore of its own (checked before writing
+# this file — see docs/netnew-worker-prompt.md §4b), so there is no upstream
+# ignore rule to worry about shadowing.
+
+# ── Build outputs / local cruft ──────────────────────────────────────────────
+build/
+out/
+*.o
+*.a
+*.so
+*.dylib
+
+# ── Editor / OS noise ────────────────────────────────────────────────────────
+.DS_Store
+*.swp
+*~

@@ -1,0 +1,1 @@
+AVERAGEIFS(D2:D13,A2:A13,">2",C2:C13,"Jeff")

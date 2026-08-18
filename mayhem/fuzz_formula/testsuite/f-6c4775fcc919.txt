@@ -1,0 +1,1 @@
+HLOOKUP(D2,D:D,1,2)

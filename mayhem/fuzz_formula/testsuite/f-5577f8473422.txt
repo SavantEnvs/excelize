@@ -1,0 +1,1 @@
+WEEKDAY("January 25, 100")

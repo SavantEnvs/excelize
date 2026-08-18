@@ -1,0 +1,9 @@
+project: savantenvs/excelize
+target: fuzz_formula
+testsuite:
+  - https://$MAYHEM_DOMAIN/$MAYHEM_PROJECT/$MAYHEM_TARGET/testsuite.tar
+  - file://mayhem/fuzz_formula/testsuite
+cmds:
+  - cmd: /mayhem/fuzz_formula
+    libfuzzer: true
+    dictionary: /mayhem/mayhem/fuzz_formula/fuzz_formula.dict

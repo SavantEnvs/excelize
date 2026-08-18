@@ -1,0 +1,1 @@
+_xlfn.FLOOR.PRECISE(26.75,0.1)

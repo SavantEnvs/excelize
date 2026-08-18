@@ -1,0 +1,1 @@
+RIGHTB("Original Text",13)

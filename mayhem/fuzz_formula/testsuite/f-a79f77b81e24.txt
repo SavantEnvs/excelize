@@ -1,0 +1,1 @@
+SEARCHB("?l","你好world")

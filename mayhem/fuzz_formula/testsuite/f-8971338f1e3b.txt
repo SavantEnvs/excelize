@@ -1,0 +1,1 @@
+NEGBINOMDIST(6,12,"")

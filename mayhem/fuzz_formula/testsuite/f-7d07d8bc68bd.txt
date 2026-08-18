@@ -1,0 +1,1 @@
+DSTDEVP(A4:E10,"Profit",A1:F3)

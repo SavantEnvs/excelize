@@ -1,0 +1,80 @@
+//go:build go1.18
+
+// mayhem harness — whole-workbook reader (ZIP container + XML + relationship
+// resolution).
+//
+// Fuzzes excelize.OpenReader over the FULL container stack: the ZIP archive,
+// the workbook/worksheet/styles/shared-strings XML parts, relationship
+// resolution between them, and the streaming row/cell decoder. This is the
+// core surface — everything else in the library builds on top of it.
+//
+// No file I/O (see docs/netnew-worker-prompt.md §3): bytes come only from the
+// fuzzer; starter seeds are real upstream test/*.xlsx fixtures wired via the
+// Mayhemfile `testsuite:` directive.
+//
+// BOUNDING (load-bearing — a Microsoft Office container is a classic
+// zip/XML-bomb target):
+//   - UnzipSizeLimit/UnzipXMLSizeLimit cap the total decompressed bytes and
+//     the size of any single XML part the library will read, well below the
+//     library's own generous defaults (16GB / 16MB), so a crafted small ZIP
+//     that inflates to gigabytes is rejected before it is fully materialized.
+//   - The sheet/row walk below is capped independently of anything the
+//     (attacker-controlled) file claims about its own dimensions: at most
+//     maxSheets sheets, and at most maxRows rows per sheet, read through the
+//     streaming Rows() iterator (not GetRows(), which buffers the whole
+//     sheet before the caller gets a chance to stop). Column count per row
+//     is bounded by the already-capped worksheet XML part.
+//
+// This file is committed as `.go.src` (a non-.go name) so it is never picked
+// up as an ordinary package file by `go build`/`go test`; mayhem/build.sh
+// copies it into the package root as a real _test.go only for the
+// go-118-fuzz-build step.
+
+package excelize
+
+import (
+	"bytes"
+	"testing"
+)
+
+const (
+	fuzzOpenReaderUnzipSizeLimit    = 32 << 20 // 32MiB total decompressed content
+	fuzzOpenReaderUnzipXMLSizeLimit = 8 << 20  // 8MiB per XML part
+	fuzzOpenReaderMaxSheets         = 8
+	fuzzOpenReaderMaxRows           = 200
+)
+
+func FuzzMayhemOpenReader(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		opts := Options{
+			UnzipSizeLimit:    fuzzOpenReaderUnzipSizeLimit,
+			UnzipXMLSizeLimit: fuzzOpenReaderUnzipXMLSizeLimit,
+		}
+		wb, err := OpenReader(bytes.NewReader(data), opts)
+		if err != nil {
+			// Malformed/oversized input is an expected outcome, not a finding.
+			return
+		}
+		defer wb.Close()
+
+		sheets := wb.GetSheetList()
+		for i, sheet := range sheets {
+			if i >= fuzzOpenReaderMaxSheets {
+				break
+			}
+			rows, err := wb.Rows(sheet)
+			if err != nil {
+				continue
+			}
+			n := 0
+			for rows.Next() {
+				n++
+				if n > fuzzOpenReaderMaxRows {
+					break
+				}
+				_, _ = rows.Columns()
+			}
+			_ = rows.Close()
+		}
+	})
+}

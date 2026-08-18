@@ -1,0 +1,70 @@
+//go:build go1.18
+
+// mayhem harness — formula parser/evaluator.
+//
+// Fuzzes the formula surface independently of the container/XML surface
+// exercised by harness_openreader_test.go.src: builds a tiny FIXED in-memory
+// workbook (excelize.NewFile — no ZIP/XML parsing involved), sets a cell's
+// formula to fuzzer-provided TEXT, and evaluates it with CalcCellValue. The
+// tokenizer (github.com/xuri/efp), the infix-expression evaluator, and the
+// ~450 built-in functions in calc.go are a separate, rich attack surface
+// (string/regex functions, financial functions, array/reference handling)
+// with no upstream fuzz target.
+//
+// No file I/O: bytes come only from the fuzzer (as formula TEXT, not a
+// binary container) and become the cell formula string directly. Starter
+// seeds are formula-text fixtures harvested from calc_test.go's known-answer
+// table, wired via the Mayhemfile `testsuite:` directive.
+//
+// BOUNDING:
+//   - formula length is capped (maxFormulaLen) — an extremely long formula
+//     string is a resource-exhaustion input, not an interesting parser input,
+//     and the tokenizer/evaluator's cost is not linear in all cases.
+//   - self-referential / circular formulas are already guarded INSIDE the
+//     library: cellResolver's ctx.iterations map bounds re-evaluation of any
+//     cell to f.options.MaxCalcIterations (0 by default => a cross-cell cycle
+//     evaluates at most once before returning the cached/empty arg), and a
+//     formula that refers directly to its OWN entry cell short-circuits to
+//     the raw cell value instead of recursing (calc.go's cellResolver: `if
+//     ctx.entry != ref { ... recurse ... }`). No additional guard is added
+//     here for that case — it is the library's own protection, and this
+//     harness sets exactly one formula per iteration so there is no way to
+//     construct a MULTI-cell cycle from fuzzer input in the first place.
+//
+// This file is committed as `.go.src` (a non-.go name) so it is never picked
+// up as an ordinary package file by `go build`/`go test`; mayhem/build.sh
+// copies it into the package root as a real _test.go only for the
+// go-118-fuzz-build step.
+
+package excelize
+
+import "testing"
+
+const fuzzFormulaMaxLen = 4096
+
+func FuzzMayhemFormula(f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) == 0 || len(data) > fuzzFormulaMaxLen {
+			return
+		}
+		formula := string(data)
+
+		wb := NewFile()
+		defer wb.Close()
+
+		// A handful of typed cells for the formula to reference: numbers, a
+		// string, and a second row/column so range references (A1:A3, A1:B2,
+		// …) resolve to something.
+		_ = wb.SetCellInt("Sheet1", "A1", 1)
+		_ = wb.SetCellInt("Sheet1", "A2", 2)
+		_ = wb.SetCellInt("Sheet1", "A3", 3)
+		_ = wb.SetCellStr("Sheet1", "B1", "text")
+		_ = wb.SetCellInt("Sheet1", "B2", 4)
+
+		if err := wb.SetCellFormula("Sheet1", "C1", formula); err != nil {
+			// Not parseable as a formula at all — expected on most fuzzer input.
+			return
+		}
+		_, _ = wb.CalcCellValue("Sheet1", "C1")
+	})
+}
